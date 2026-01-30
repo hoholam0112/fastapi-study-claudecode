@@ -1,0 +1,38 @@
+# FastAPI 핵심
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# 데이터베이스
+sqlalchemy>=2.0.23
+alembic>=1.13.0
+aiosqlite>=0.19.0          # 비동기 SQLite (ch12 실습용)
+
+# NoSQL (선택)
+motor>=3.3.0               # MongoDB 비동기 드라이버
+redis>=5.0.0               # Redis 클라이언트
+
+# 인증 & 보안
+python-jose[cryptography]>=3.3.0   # JWT 토큰
+passlib[bcrypt]>=1.7.4             # 비밀번호 해싱
+python-multipart>=0.0.6            # Form 데이터 처리
+
+# HTTP 클라이언트
+httpx>=0.25.0              # 비동기 HTTP 클라이언트
+
+# 환경 설정
+python-dotenv>=1.0.0       # .env 파일 로드
+
+# 테스트
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+
+# 배포 & 성능
+gunicorn>=21.2.0           # WSGI/ASGI 서버
+
+# 로깅
+python-json-logger>=2.0.0  # JSON 포맷 로깅
+
+# WebSocket 테스트
+websockets>=12.0

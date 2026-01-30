@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 채팅</title>
+    <style>
+        /* 전체 페이지 스타일 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* 채팅 컨테이너 */
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* 헤더 */
+        .chat-header {
+            background-color: #4a90d9;
+            color: white;
+            padding: 16px 20px;
+            text-align: center;
+        }
+
+        .chat-header h1 {
+            font-size: 1.3em;
+            margin-bottom: 4px;
+        }
+
+        .chat-header p {
+            font-size: 0.85em;
+            opacity: 0.9;
+        }
+
+        /* 연결 폼 */
+        .connect-section {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            align-items: center;
+        }
+
+        .connect-section label {
+            font-weight: 600;
+            font-size: 0.9em;
+            white-space: nowrap;
+            color: #333;
+        }
+
+        .connect-section input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .connect-section input:focus {
+            border-color: #4a90d9;
+        }
+
+        .connect-section button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #connectBtn {
+            background-color: #4a90d9;
+            color: white;
+        }
+
+        #connectBtn:hover {
+            background-color: #3a7bc8;
+        }
+
+        #disconnectBtn {
+            background-color: #e74c3c;
+            color: white;
+            display: none;
+        }
+
+        #disconnectBtn:hover {
+            background-color: #c0392b;
+        }
+
+        /* 상태 표시 */
+        .status-bar {
+            padding: 8px 20px;
+            font-size: 0.8em;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status-bar.disconnected {
+            background-color: #ffeaea;
+            color: #e74c3c;
+        }
+
+        .status-bar.connected {
+            background-color: #eafff0;
+            color: #27ae60;
+        }
+
+        /* 메시지 표시 영역 */
+        .messages-area {
+            height: 400px;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: #fafafa;
+        }
+
+        .message {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            line-height: 1.4;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        /* 시스템 메시지 (입장/퇴장 알림) */
+        .message.system {
+            background-color: #f0f0f0;
+            color: #888;
+            text-align: center;
+            align-self: center;
+            font-size: 0.82em;
+            font-style: italic;
+        }
+
+        /* 내가 보낸 메시지 */
+        .message.mine {
+            background-color: #4a90d9;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        /* 다른 사람이 보낸 메시지 */
+        .message.others {
+            background-color: #e8e8e8;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        /* 메시지 입력 영역 */
+        .input-section {
+            padding: 16px 20px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #e0e0e0;
+            background-color: #ffffff;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 12px 14px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-section input:focus {
+            border-color: #4a90d9;
+        }
+
+        .input-section input:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .input-section button {
+            padding: 12px 24px;
+            background-color: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .input-section button:hover:not(:disabled) {
+            background-color: #3a7bc8;
+        }
+
+        .input-section button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- 헤더 -->
+        <div class="chat-header">
+            <h1>WebSocket 실시간 채팅</h1>
+            <p>FastAPI WebSocket 학습 예제</p>
+        </div>
+
+        <!-- 연결 설정 -->
+        <div class="connect-section">
+            <label for="clientId">닉네임:</label>
+            <input
+                type="text"
+                id="clientId"
+                placeholder="사용할 닉네임을 입력하세요"
+                maxlength="20"
+            />
+            <button id="connectBtn" onclick="connect()">연결</button>
+            <button id="disconnectBtn" onclick="disconnect()">연결 해제</button>
+        </div>
+
+        <!-- 연결 상태 표시 -->
+        <div class="status-bar disconnected" id="statusBar">
+            연결되지 않음
+        </div>
+
+        <!-- 메시지 표시 영역 -->
+        <div class="messages-area" id="messagesArea">
+            <!-- 메시지가 여기에 동적으로 추가됨 -->
+        </div>
+
+        <!-- 메시지 입력 -->
+        <div class="input-section">
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="메시지를 입력하세요..."
+                disabled
+                onkeypress="handleKeyPress(event)"
+            />
+            <button id="sendBtn" onclick="sendMessage()" disabled>전송</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // WebSocket 클라이언트 JavaScript
+        // ============================================================
+
+        // WebSocket 연결 객체
+        let ws = null;
+        // 현재 클라이언트 ID (닉네임)
+        let currentClientId = null;
+
+        // DOM 요소 참조
+        const clientIdInput = document.getElementById('clientId');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statusBar = document.getElementById('statusBar');
+        const messagesArea = document.getElementById('messagesArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        /**
+         * WebSocket 서버에 연결한다.
+         *
+         * 입력된 닉네임으로 ws://localhost:8000/ws/{client_id}에 연결하고,
+         * 연결 성공/실패/종료/메시지 수신 이벤트 핸들러를 등록한다.
+         */
+        function connect() {
+            const clientId = clientIdInput.value.trim();
+
+            // 닉네임 유효성 검사
+            if (!clientId) {
+                alert('닉네임을 입력해 주세요.');
+                clientIdInput.focus();
+                return;
+            }
+
+            currentClientId = clientId;
+
+            // WebSocket 연결 생성
+            // 현재 호스트를 기반으로 WebSocket URL 구성
+            const wsUrl = `ws://${window.location.host}/ws/${clientId}`;
+            ws = new WebSocket(wsUrl);
+
+            // 연결 성공 이벤트
+            ws.onopen = function() {
+                updateStatus('connected', `'${clientId}'(으)로 연결됨`);
+                toggleUI(true);
+                messageInput.focus();
+                addSystemMessage('서버에 연결되었습니다.');
+            };
+
+            // 메시지 수신 이벤트
+            ws.onmessage = function(event) {
+                const message = event.data;
+
+                // 메시지 유형 판별: 시스템 메시지 vs 일반 메시지
+                if (message.includes('시스템:')) {
+                    addSystemMessage(message);
+                } else if (message.includes(`${currentClientId}:`)) {
+                    // 내가 보낸 메시지
+                    addMessage(message, 'mine');
+                } else {
+                    // 다른 사람이 보낸 메시지
+                    addMessage(message, 'others');
+                }
+            };
+
+            // 연결 종료 이벤트
+            ws.onclose = function(event) {
+                updateStatus('disconnected', '연결이 종료되었습니다');
+                toggleUI(false);
+                addSystemMessage('서버와의 연결이 종료되었습니다.');
+                ws = null;
+            };
+
+            // 에러 이벤트
+            ws.onerror = function(error) {
+                console.error('WebSocket 에러:', error);
+                addSystemMessage('연결 중 오류가 발생했습니다.');
+            };
+        }
+
+        /**
+         * WebSocket 연결을 해제한다.
+         */
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        /**
+         * 메시지를 서버로 전송한다.
+         *
+         * 입력 필드의 텍스트를 WebSocket을 통해 서버로 보내고,
+         * 서버가 이를 모든 클라이언트에게 브로드캐스트한다.
+         */
+        function sendMessage() {
+            const message = messageInput.value.trim();
+
+            if (!message || !ws) {
+                return;
+            }
+
+            // WebSocket을 통해 메시지 전송
+            ws.send(message);
+
+            // 입력 필드 초기화
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        /**
+         * Enter 키 입력 시 메시지를 전송한다.
+         */
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // ============================================================
+        // UI 헬퍼 함수들
+        // ============================================================
+
+        /**
+         * 연결 상태 표시줄을 업데이트한다.
+         *
+         * @param {string} status - 'connected' 또는 'disconnected'
+         * @param {string} text - 표시할 상태 텍스트
+         */
+        function updateStatus(status, text) {
+            statusBar.className = `status-bar ${status}`;
+            statusBar.textContent = text;
+        }
+
+        /**
+         * 연결 상태에 따라 UI 요소를 토글한다.
+         *
+         * @param {boolean} isConnected - 연결 상태
+         */
+        function toggleUI(isConnected) {
+            clientIdInput.disabled = isConnected;
+            connectBtn.style.display = isConnected ? 'none' : 'inline-block';
+            disconnectBtn.style.display = isConnected ? 'inline-block' : 'none';
+            messageInput.disabled = !isConnected;
+            sendBtn.disabled = !isConnected;
+        }
+
+        /**
+         * 일반 메시지를 채팅 영역에 추가한다.
+         *
+         * @param {string} text - 메시지 내용
+         * @param {string} type - 'mine' (내 메시지) 또는 'others' (다른 사람 메시지)
+         */
+        function addMessage(text, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            messagesArea.appendChild(messageDiv);
+
+            // 스크롤을 최하단으로 이동
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        /**
+         * 시스템 메시지(입장/퇴장 알림)를 채팅 영역에 추가한다.
+         *
+         * @param {string} text - 시스템 메시지 내용
+         */
+        function addSystemMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            messageDiv.textContent = text;
+            messagesArea.appendChild(messageDiv);
+
+            // 스크롤을 최하단으로 이동
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        // ============================================================
+        // 페이지 로드 시 초기화
+        // ============================================================
+
+        // 페이지 종료 시 WebSocket 연결 정리
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+
+        // 닉네임 입력 필드에서 Enter 키로 연결
+        clientIdInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                connect();
+            }
+        });
+    </script>
+</body>
+</html>

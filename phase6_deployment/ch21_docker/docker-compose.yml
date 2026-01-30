@@ -1,0 +1,123 @@
+# ============================================================
+# Docker Compose 구성 파일
+# ============================================================
+# FastAPI 웹 서버와 Redis 캐시를 함께 실행하는 다중 서비스 구성.
+# 개발 환경에서는 볼륨 마운트를 통해 코드 변경이 실시간 반영된다.
+#
+# 실행 방법:
+#   docker-compose up          # 포그라운드 실행 (로그 확인)
+#   docker-compose up -d       # 백그라운드 실행
+#   docker-compose up --build  # 이미지 재빌드 후 실행
+#   docker-compose down        # 서비스 중지 및 컨테이너 삭제
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # 웹 서비스: FastAPI 애플리케이션
+  # ----------------------------------------------------------
+  web:
+    # 현재 디렉토리의 Dockerfile을 사용하여 이미지를 빌드한다
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # 빌드 시 production 스테이지를 타겟으로 지정한다
+      target: production
+
+    # 컨테이너 이름을 명시적으로 지정한다
+    container_name: fastapi-docker-study
+
+    # 포트 매핑: 호스트 8000번 -> 컨테이너 8000번
+    ports:
+      - "8000:8000"
+
+    # 환경변수 설정
+    # Dockerfile의 ENV 기본값을 덮어쓴다
+    environment:
+      - APP_NAME=FastAPI Docker 학습
+      - VERSION=1.0.0
+      - ENVIRONMENT=development
+      - DEBUG=true
+      # Redis 연결 정보 (선택사항)
+      - REDIS_URL=redis://redis:6379/0
+
+    # 볼륨 마운트: 개발 시 코드 변경을 실시간 반영한다
+    # 호스트의 현재 디렉토리를 컨테이너의 /app에 마운트한다
+    volumes:
+      - .:/app
+
+    # Uvicorn을 --reload 모드로 실행하여 코드 변경 시 자동 재시작한다
+    # 개발 환경 전용 설정이므로, 프로덕션에서는 Dockerfile의 CMD를 사용한다
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+    # Redis 서비스가 먼저 시작된 후에 웹 서비스를 시작한다
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    # 자동 재시작 정책: 비정상 종료 시 재시작한다
+    restart: unless-stopped
+
+    # 컨테이너에 할당할 리소스 제한 (선택사항)
+    # 프로덕션 환경에서 안정적인 운영을 위해 설정한다
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+    # Docker 네트워크 연결
+    networks:
+      - app-network
+
+  # ----------------------------------------------------------
+  # Redis 서비스: 캐시 및 세션 저장소 (선택사항)
+  # ----------------------------------------------------------
+  redis:
+    # 공식 Redis Alpine 이미지 사용 (경량)
+    image: redis:7-alpine
+
+    # 컨테이너 이름 지정
+    container_name: fastapi-redis
+
+    # 포트 매핑: 호스트에서 Redis CLI로 접속할 때 사용한다
+    ports:
+      - "6379:6379"
+
+    # Redis 데이터 영속화를 위한 볼륨
+    # 컨테이너가 재시작되어도 캐시 데이터가 유지된다
+    volumes:
+      - redis-data:/data
+
+    # Redis 헬스체크: ping 명령으로 상태를 확인한다
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+    # 자동 재시작 정책
+    restart: unless-stopped
+
+    # Docker 네트워크 연결
+    networks:
+      - app-network
+
+# ----------------------------------------------------------
+# 볼륨 정의
+# ----------------------------------------------------------
+# 명명된 볼륨을 사용하여 Docker가 데이터를 관리하도록 한다
+volumes:
+  redis-data:
+    driver: local
+
+# ----------------------------------------------------------
+# 네트워크 정의
+# ----------------------------------------------------------
+# 서비스 간 통신을 위한 사용자 정의 브리지 네트워크
+networks:
+  app-network:
+    driver: bridge
